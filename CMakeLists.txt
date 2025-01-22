@@ -25,7 +25,7 @@ else()
     message(FATAL_ERROR "Could not find Boost")
 endif()
 
-add_executable(main src/main.cpp src/SharedPtr.cpp src/TestSharedPtr.cpp)
+add_executable(main src/main.cpp src/TestSharedPtr.cpp)
 
 # Include Boost headers
 target_include_directories(main PRIVATE ${Boost_INCLUDE_DIRS} "${CMAKE_SOURCE_DIR}/include")
