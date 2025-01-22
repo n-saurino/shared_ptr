@@ -14,7 +14,6 @@ public:
         delete ptr_;
     }
 
-private:
     T* ptr_{};
     std::atomic<int> ref_count_{};
 };
