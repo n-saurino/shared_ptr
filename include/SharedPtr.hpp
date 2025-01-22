@@ -1,78 +1,87 @@
 #pragma once
-#include <iostream>
+#include "ControlBlock.hpp"
 
 template<typename T>
 class SharedPtr
 {
 public:
-    // constructor initializes the shared pointer with a raw pointer
-    SharedPtr(T* ptr): ref_count_{new int{1}}, ptr_{ptr}{
+    // instantiates a new control block and points out cb_ptr_ at it
+    // or if T* is nullptr, we set cb_ptr_ to nullptr
+    SharedPtr(T* ptr): cb_ptr_{ptr ? new ControlBlock<T>{} : nullptr}{
 
     }
-    // copy constructor increases reference count
-    SharedPtr(const SharedPtr<T>& other):
-                        ref_count_{other.ref_count_}, 
-                        ptr_{other.ptr_}{
-        ++(*ref_count_);
-    }
-    // move constructor transfers ownership without increasing reference count
-    SharedPtr(SharedPtr<T>&& other): ptr_{other.ptr_},
-                        ref_count_{other.ref_count_}{
-        other.ptr_ = nullptr;
-        other.ref_count_ = nullptr;
-    }
-    // destructor
-    ~SharedPtr(){
-        // if there are no longer any pointers to the object
-        // delete the object and our reference counter
-        if(!(--ref_count_)){
-            delete ptr_;
-            delete ref_count_;
+
+    // copy constructor
+    SharedPtr(const SharedPtr& other){
+        // need to decrease the count of the ref_count_ and then
+        // if this is the last ref_count, we need to delete the 
+        // control block
+        if(cb_ptr_ && cb_ptr_->ref_count_.fetch_sub(1) == 1){
+            delete cb_ptr_;
+            cb_ptr_ = nullptr;
         }
+        cb_ptr_ = other.cb_ptr_;
+        cb_ptr_->ref_count_.fetch_add(1);
     }
-    // * operator overload for dereferencing
-    T& operator*(){
-        return *ptr_;
+
+    ~SharedPtr(){
+        delete cb_ptr_;
     }
-    // -> operator overloading for ptr access
-    T* operator->(){
-        return ptr_;
-    }
+    
     // copy assignment operator
-    SharedPtr& operator=(const SharedPtr<T>& other){
+    SharedPtr& operator=(const SharedPtr& other){
+        // check for self assignment
         if(this != &other){
-            if(!(--(*ref_count_))){
-                delete ptr_;
-                delete ref_count_;
+            if(cb_ptr_ && cb_ptr_->ref_count_.fetch_sub(1) == 1){
+                delete cb_ptr_;
+            }    
+            
+            cb_ptr_ = other.cb_ptr_;
+            if(cb_ptr_){
+                cb_ptr_->ref_count_.fetch_add(1);
             }
-        this->ptr_ = other.ptr_;
-        this->ref_count_ = other.ref_count_; 
-        (*ref_count_)++;
         }
         
         return *this;
     }
+    
     // move assignment operator
-    SharedPtr& operator=(SharedPtr<T>&& other){
+    SharedPtr& operator=(const SharedPtr&& other) noexcept{
         if(this != &other){
-            if(!(--(*ref_count_))){
-                delete ptr_;
-                delete ref_count_;
+            if(cb_ptr_ && cb_ptr_->ref_count_.fetch_sub(1) == 1){
+                delete cb_ptr_;
             }
-            ptr_ = other.ptr_;
-            ref_count_ = other.ref_count_;
-            other.ptr_ = nullptr;
-            other.ref_count_ = nullptr;
-        }   
-
-        return *this; 
+            cb_ptr_ = other.cb_ptr_;
+            other.cb_ptr_ = nullptr;
+        } 
+        
+        return *this;
     }
-    // get reference count
-    int ReferenceCount() const{
-        return *ref_count_;
+
+    T& operator*(){
+        if(cb_ptr_){
+            return *(cb_ptr_->ptr_);
+        }
+
+        return nullptr; 
+    }
+
+    T* operator->(){
+        if(cb_ptr_){
+            return cb_ptr_->ptr_;
+        } 
+        
+        return nullptr;
     }
     
+    int RefCount() const{
+        if(cb_ptr_){
+            return cb_ptr_->ref_count_.load();
+        }
+        
+        return -1;
+    }
+
 private:
-    int* ref_count_{0};
-    T* ptr_{};
+    ControlBlock<T>* cb_ptr_{};
 };
