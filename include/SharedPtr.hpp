@@ -77,9 +77,11 @@ public:
     }
 
     T& operator*(){
-        if(cb_ptr_){
-            return *(cb_ptr_->ptr_);
+        if(!cb_ptr_){
+            throw std::runtime_error("Dereferencing a nullptr");        
         }
+        
+        return *(cb_ptr_->ptr_);
     }
 
     T* operator->(){
